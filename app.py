@@ -1,6 +1,4 @@
-# I still haven't implemented Step 8 (session) - will come back to it!
-
-from flask import Flask, request, render_template, redirect, flash
+from flask import Flask, request, render_template, redirect, flash, session
 from surveys import *
 from flask_debugtoolbar import DebugToolbarExtension
 
@@ -10,36 +8,37 @@ app.config['DEBUG_TB_INTERCEPT_REDIRECTS'] = False
 
 debug = DebugToolbarExtension(app)
 
-responses = []
 
 @app.route('/')
 def show_homepage():
     """Show homepage and redirect to the question page."""
     return render_template('home.html', title=satisfaction_survey.title, instructions=satisfaction_survey.instructions)
 
-@app.route('/begin')
+@app.route('/begin', methods=["POST"])
 def start_survey():
     """Clear the responses when user starts the survey."""
 
-    responses = []
+    session['responses'] = []
     return redirect('/question/0')
 
 @app.route('/question/<int:question_num>')
 def question_page(question_num):
     """Ask question and show choices."""
 
+    responses = session.get('responses')
+
     if responses is None:
         # Redirect user if they try to access question URL too soon
         return redirect('/')
 
-    if len(responses) == len(satisfaction_survey.questions):
+    if len(session['responses']) == len(satisfaction_survey.questions):
         # Redirect user to end page if the survey is complete
         return redirect('/complete')
 
-    if question_num != len(responses):
+    if question_num != len(session['responses']):
         # Redirect user to correct question if they try to skip a question
         flash("You're trying to access an invalid question!")
-        return redirect(f'/question/{len(responses)}')
+        return redirect(f'/question/{len(session['responses'])}')
     
     # Retrieve question from satisfaction survey
     question_instance = satisfaction_survey.questions[question_num]
@@ -50,13 +49,15 @@ def question_page(question_num):
 def answer_page():
     
     choice = request.form['choices']
+    responses = session['responses']
     responses.append(choice)
-    print(responses)
+    session['responses'] = responses
+
     # Check if user has answered the last question
     if len(responses) == 4:
         return redirect('/complete')
 
-    return redirect(f"/question/{len(responses)}")
+    return redirect(f"/question/{len(session['responses'])}")
 
 @app.route('/complete')
 def completed():
